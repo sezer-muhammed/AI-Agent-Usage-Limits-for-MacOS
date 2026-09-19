@@ -1,0 +1,53 @@
+## macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+## Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+xcuserdata/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcworkspace/contents.xcworkspacedata
+**/xcshareddata/WorkspaceSettings.xcsettings
+
+## Swift Package Manager
+.build/
+.swiftpm/
+Packages/
+Package.resolved
+*.resolved
+
+## Secrets — never commit provider credentials or captured account payloads
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.p12
+*.mobileprovision
+**/Local/*.json
+
+## Spike / debug harness output (may contain real account data)
+Artifacts/
+out/
+spike-output*.json
+debug-snapshot*.json
+
+## Tooling
+*.log
+*.tmp
+.venv/
+node_modules/
