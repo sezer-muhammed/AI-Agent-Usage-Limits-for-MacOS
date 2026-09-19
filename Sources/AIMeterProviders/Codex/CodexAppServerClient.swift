@@ -93,7 +93,12 @@ public struct CodexAppServerClient: Sendable {
             planLabel: account?.account?.planType ?? snapshot?.planType,
             models: (models?.data ?? []).compactMap(normalize),
             unsupported: unsupported,
-            requiresAuthentication: requiresAuthentication || account?.requiresOpenaiAuth == true
+            // `requiresOpenaiAuth` is NOT a signed-out signal: a signed-in ChatGPT
+            // account still reports it true (it describes the auth mode, not the
+            // session). Signed-out is an account/read that returns no account, or
+            // a read that came back unauthorized.
+            requiresAuthentication: requiresAuthentication
+                || (account != nil && account?.account == nil)
         )
     }
 

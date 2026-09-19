@@ -99,6 +99,11 @@ Differences from the specification's assumptions:
   with responses, so the client matches responses by request id.
 - `credits.balance` is a **decimal string** or absent.
 
+`requiresOpenaiAuth` is **not** a signed-out signal — a signed-in ChatGPT
+account still reports it `true`, because it describes the authentication mode
+rather than the session. Signed-out is `account/read` returning `account: null`,
+or a read coming back unauthorized.
+
 Behaviour on a signed-out profile: `model/list` still succeeds, so the refresh
 records the models and reports the account as needing authentication instead of
 failing entirely.

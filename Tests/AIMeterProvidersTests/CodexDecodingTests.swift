@@ -90,3 +90,37 @@ struct CodexDecodingTests {
         #expect(ModelRankingEngine().bestGeneralFree(models) == nil)
     }
 }
+
+@Suite("Codex account state")
+struct CodexAccountStateTests {
+    /// `requiresOpenaiAuth` describes the auth *mode*, not the session: a
+    /// signed-in ChatGPT account still reports it true. Treating it as a
+    /// signed-out signal mislabels a working account.
+    @Test("A signed-in account is not reported as signed out")
+    func signedInAccountIsNotSignedOut() throws {
+        let payload = """
+            {"account":{"type":"chatgpt","email":"user@example.com","planType":"plus"},
+             "requiresOpenaiAuth":true}
+            """
+
+        let response = try JSONDecoder().decode(
+            CodexDTO.GetAccountResponse.self,
+            from: Data(payload.utf8)
+        )
+
+        #expect(response.requiresOpenaiAuth == true)
+        // The account object being present is what says "signed in".
+        #expect(response.account != nil)
+        #expect(response.account?.planType == "plus")
+    }
+
+    @Test("A signed-out profile returns no account")
+    func signedOutProfileHasNoAccount() throws {
+        let response = try JSONDecoder().decode(
+            CodexDTO.GetAccountResponse.self,
+            from: Data(#"{"account":null,"requiresOpenaiAuth":true}"#.utf8)
+        )
+
+        #expect(response.account == nil)
+    }
+}
