@@ -1,0 +1,82 @@
+# The Xcode project is generated from this file — never hand-edited — so the
+# target layout stays reviewable in git. Regenerate with: xcodegen generate
+name: AIMeter
+
+options:
+  bundleIdPrefix: com.sezer-muhammed
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Ad-hoc local signing: the app runs on this Mac without an Apple ID.
+    # An App Group (needed for the widget) requires a real team; see docs.
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGNING_REQUIRED: "YES"
+    CODE_SIGNING_ALLOWED: "YES"
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_HARDENED_RUNTIME: "NO"
+
+packages:
+  AIMeter:
+    path: .
+
+targets:
+  AIMeter:
+    type: application
+    platform: macOS
+    sources:
+      - path: App/Sources
+      - path: App/Resources
+        buildPhase: resources
+    dependencies:
+      - package: AIMeter
+        product: AIMeterCore
+      - package: AIMeter
+        product: AIMeterProviders
+      - target: AIMeterWidget
+        embed: true
+        codeSign: true
+    info:
+      path: App/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: AI Meter
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        # Menu bar utility: no Dock icon by default.
+        LSUIElement: true
+        NSHumanReadableCopyright: ""
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sezer-muhammed.aimeter
+        PRODUCT_NAME: AI Meter
+        CODE_SIGN_ENTITLEMENTS: App/Resources/AIMeter.entitlements
+        COMBINE_HIDPI_IMAGES: "YES"
+
+  AIMeterWidget:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: Widget/Sources
+    dependencies:
+      - package: AIMeter
+        product: AIMeterCore
+    info:
+      path: Widget/Info.plist
+      properties:
+        CFBundleDisplayName: AI Meter
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sezer-muhammed.aimeter.widget
+        PRODUCT_NAME: AIMeterWidget
+        CODE_SIGN_ENTITLEMENTS: Widget/AIMeterWidget.entitlements

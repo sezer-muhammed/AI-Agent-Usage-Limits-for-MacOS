@@ -63,10 +63,16 @@ public struct WidgetSnapshot: Codable, Sendable, Hashable {
             best[category.rawValue] = BestModel(name: model.displayName, score: score)
         }
 
+        // Names come from the account, so two Codex profiles are distinguishable.
+        let namesByAccount = Dictionary(
+            dashboard.statuses.map { ($0.accountID, $0.displayName) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
         let accounts = dashboard.usage.map { snapshot in
             AccountUsage(
                 id: snapshot.accountID,
-                displayName: snapshot.provider.displayName,
+                displayName: namesByAccount[snapshot.accountID] ?? snapshot.provider.displayName,
                 primaryUsage: snapshot.primaryWindow?.usedFraction,
                 resetsAt: snapshot.primaryWindow?.resetsAt,
                 isStale: Freshness.of(snapshot.capturedAt, now: now) == .stale

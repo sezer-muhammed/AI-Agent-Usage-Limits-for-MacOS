@@ -178,3 +178,33 @@ struct WidgetSnapshotTests {
         #expect(widget.accounts.first?.primaryUsage == 0.9)
     }
 }
+
+@Suite("Widget account naming")
+struct WidgetAccountNamingTests {
+    /// Two accounts of the same provider must not render as two identical rows.
+    @Test("Each account keeps its own name in the widget payload")
+    func accountsKeepTheirNames() {
+        let now = Date()
+        let dashboard = DashboardSnapshot(
+            generatedAt: now,
+            usage: [
+                UsageSnapshot(provider: .codex, accountID: "codex-personal", capturedAt: now),
+                UsageSnapshot(provider: .codex, accountID: "codex-secondary", capturedAt: now),
+            ],
+            statuses: [
+                ProviderStatus(
+                    accountID: "codex-personal", provider: .codex,
+                    displayName: "Codex · Personal", lastSuccessAt: now, lastAttemptAt: now
+                ),
+                ProviderStatus(
+                    accountID: "codex-secondary", provider: .codex,
+                    displayName: "Codex · Secondary", lastSuccessAt: now, lastAttemptAt: now
+                ),
+            ],
+            bestFree: [:]
+        )
+
+        let widget = WidgetSnapshot(dashboard: dashboard, now: now)
+        #expect(widget.accounts.map(\.displayName) == ["Codex · Personal", "Codex · Secondary"])
+    }
+}

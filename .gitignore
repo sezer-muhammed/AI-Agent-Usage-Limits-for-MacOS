@@ -17,9 +17,8 @@ xcuserdata/
 *.ipa
 *.dSYM.zip
 *.dSYM
-*.xcodeproj/*
-!*.xcodeproj/project.pbxproj
-!*.xcodeproj/xcshareddata/
+# The project is generated from project.yml by XcodeGen, so it is not committed.
+*.xcodeproj/
 !*.xcworkspace/contents.xcworkspacedata
 **/xcshareddata/WorkspaceSettings.xcsettings
 

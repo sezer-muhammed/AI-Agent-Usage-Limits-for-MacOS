@@ -34,8 +34,8 @@ public actor RefreshCoordinator {
     private var statuses: [String: ProviderStatus] = [:]
     private var inFlight: Task<Void, Never>?
 
-    private let usageRepository: (any UsageSnapshotRepositoryProtocol)?
-    private let widgetWriter: (any WidgetSnapshotWriting)?
+    private var usageRepository: (any UsageSnapshotRepositoryProtocol)?
+    private var widgetWriter: (any WidgetSnapshotWriting)?
     private let now: @Sendable () -> Date
 
     public private(set) var state: State = .idle
@@ -50,6 +50,17 @@ public actor RefreshCoordinator {
         self.usageRepository = usageRepository
         self.widgetWriter = widgetWriter
         self.now = now
+    }
+
+    /// Storage opens after the coordinator exists, so it is attached here rather
+    /// than required at init. Without this the coordinator silently keeps no
+    /// history and cached-first rendering has nothing to render.
+    public func attach(
+        usageRepository: (any UsageSnapshotRepositoryProtocol)? = nil,
+        widgetWriter: (any WidgetSnapshotWriting)? = nil
+    ) {
+        if let usageRepository { self.usageRepository = usageRepository }
+        if let widgetWriter { self.widgetWriter = widgetWriter }
     }
 
     public func register(_ registration: Registration) {
@@ -139,6 +150,7 @@ public actor RefreshCoordinator {
                 statuses[accountID] = ProviderStatus(
                     accountID: accountID,
                     provider: registration.account.provider,
+                    displayName: registration.account.displayName,
                     lastSuccessAt: attemptedAt,
                     lastAttemptAt: attemptedAt
                 )
@@ -149,6 +161,7 @@ public actor RefreshCoordinator {
                 statuses[accountID] = ProviderStatus(
                     accountID: accountID,
                     provider: registration.account.provider,
+                    displayName: registration.account.displayName,
                     lastSuccessAt: statuses[accountID]?.lastSuccessAt,
                     lastAttemptAt: attemptedAt,
                     lastErrorDescription: (error as? ProviderError)?.errorDescription
@@ -161,6 +174,18 @@ public actor RefreshCoordinator {
         }
 
         // One widget write per pass, after every provider has settled.
-        try? await widgetWriter?.write(WidgetSnapshot(dashboard: snapshot(), now: now()))
+        guard let widgetWriter else {
+            AIMeterLog.widget.error("No widget writer attached; the widget will stay empty.")
+            return
+        }
+
+        do {
+            try await widgetWriter.write(WidgetSnapshot(dashboard: snapshot(), now: now()))
+        } catch {
+            // Swallowing this is how a widget silently stays blank.
+            AIMeterLog.widget.error(
+                "Widget snapshot write failed: \(String(describing: error), privacy: .public)"
+            )
+        }
     }
 }
