@@ -22,6 +22,13 @@ public struct CodexAppServerClient: Sendable {
         public let type: String?
         public let email: String?
         public let planType: String?
+
+        /// The part before the "@", used as the account's display name. Keeps
+        /// the full address out of the UI and out of the widget payload.
+        public var shortName: String? {
+            guard let email, let at = email.firstIndex(of: "@") else { return email }
+            return String(email[email.startIndex..<at])
+        }
     }
 
     private let configuration: CodexProcessController.Configuration

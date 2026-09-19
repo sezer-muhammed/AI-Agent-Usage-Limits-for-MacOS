@@ -134,8 +134,11 @@ struct WidgetSnapshotTests {
             bestFree: ["general": .init(name: "Fixture", score: 34.5)],
             accounts: [
                 .init(
-                    id: "claude", displayName: "Claude", primaryUsage: 0.72,
-                    resetsAt: nil, isStale: false
+                    id: "claude",
+                    displayName: "Claude",
+                    shortWindow: .init(usedFraction: 0.72, resetsAt: nil),
+                    longWindow: .init(usedFraction: 0.31, resetsAt: nil),
+                    isStale: false
                 )
             ]
         )
@@ -144,11 +147,12 @@ struct WidgetSnapshotTests {
         let loaded = try writer.read()
 
         #expect(loaded?.schemaVersion == WidgetSnapshot.schemaVersion)
-        #expect(loaded?.accounts.first?.primaryUsage == 0.72)
+        #expect(loaded?.accounts.first?.shortWindow?.usedFraction == 0.72)
+        #expect(loaded?.accounts.first?.longWindow?.usedFraction == 0.31)
         #expect(loaded?.bestFree["general"]?.name == "Fixture")
     }
 
-    @Test("Projection from a dashboard carries no credentials, only usage")
+    @Test("Both windows survive the projection, in their own columns")
     func projection() {
         let dashboard = DashboardSnapshot(
             generatedAt: Date(),
@@ -174,8 +178,12 @@ struct WidgetSnapshotTests {
         )
 
         let widget = WidgetSnapshot(dashboard: dashboard)
-        // The most-consumed window is what the widget leads with.
-        #expect(widget.accounts.first?.primaryUsage == 0.9)
+
+        // The five-hour and weekly windows stay distinct …
+        #expect(widget.accounts.first?.shortWindow?.usedFraction == 0.4)
+        #expect(widget.accounts.first?.longWindow?.usedFraction == 0.9)
+        // … and the small widget still leads with whichever is tightest.
+        #expect(widget.accounts.first?.leadingWindow?.usedFraction == 0.9)
     }
 }
 
@@ -207,4 +215,107 @@ struct WidgetAccountNamingTests {
         let widget = WidgetSnapshot(dashboard: dashboard, now: now)
         #expect(widget.accounts.map(\.displayName) == ["Codex · Personal", "Codex · Secondary"])
     }
+}
+
+@Suite("Widget account detail")
+struct WidgetAccountDetailTests {
+    /// An account with no quota windows (OpenRouter is pay-as-you-go) should say
+    /// something true rather than render as 0% used.
+    @Test("An account without windows falls back to its credits")
+    func creditsBecomeTheDetail() {
+        let now = Date()
+        let dashboard = DashboardSnapshot(
+            generatedAt: now,
+            usage: [
+                UsageSnapshot(
+                    provider: .openRouter,
+                    accountID: "openrouter",
+                    capturedAt: now,
+                    windows: [],
+                    creditsRemainingUSD: Decimal(string: "8.7"),
+                    planLabel: "Paid key"
+                )
+            ],
+            statuses: [],
+            bestFree: [:],
+            freeModelCount: 22
+        )
+
+        let widget = WidgetSnapshot(dashboard: dashboard, now: now)
+        let account = widget.accounts.first
+
+        #expect(account?.detail == "$8.70 left")
+        #expect(account?.shortWindow == nil)
+        #expect(widget.freeModelCount == 22)
+    }
+
+    /// With no benchmark source there is no "smartest free model" to name, so the
+    /// widget must not imply one exists.
+    @Test("No benchmarks means no best-free claim")
+    func noBenchmarksMeansNoBestFree() {
+        let widget = WidgetSnapshot(
+            dashboard: DashboardSnapshot(
+                generatedAt: Date(), usage: [], statuses: [], bestFree: [:], freeModelCount: 22
+            )
+        )
+
+        #expect(widget.bestFree.isEmpty)
+        #expect(widget.freeModelCount == 22)
+    }
+}
+
+@Suite("Cached credential")
+struct CachedCredentialTests {
+    /// Each Keychain read prompts on an ad-hoc signed build, so repeated reads
+    /// must not reach the Keychain repeatedly.
+    @Test("The secret is loaded once, however many times it is read")
+    func loadsOnce() async throws {
+        let loads = Counter()
+        let credential = CachedCredential {
+            await loads.increment()
+            return "secret"
+        }
+
+        for _ in 0..<5 {
+            #expect(try await credential.value() == "secret")
+        }
+
+        #expect(await loads.count == 1)
+    }
+
+    @Test("Invalidating forces the next read to go back to the source")
+    func invalidateForcesReload() async throws {
+        let loads = Counter()
+        let credential = CachedCredential {
+            await loads.increment()
+            return "secret"
+        }
+
+        _ = try await credential.value()
+        await credential.invalidate()
+        _ = try await credential.value()
+
+        #expect(await loads.count == 2)
+    }
+
+    /// A missing secret is cached too: absence is an answer, and re-asking would
+    /// prompt again for nothing.
+    @Test("A missing secret is not re-read on every call")
+    func missingSecretIsCached() async throws {
+        let loads = Counter()
+        let credential = CachedCredential {
+            await loads.increment()
+            return nil
+        }
+
+        _ = try await credential.value()
+        _ = try await credential.value()
+
+        #expect(await loads.count == 1)
+    }
+}
+
+private actor Counter {
+    private(set) var count = 0
+    func increment() { count += 1 }
 }

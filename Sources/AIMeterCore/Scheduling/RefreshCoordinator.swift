@@ -41,6 +41,7 @@ public actor RefreshCoordinator {
     public private(set) var state: State = .idle
     public private(set) var bestFree: [RankingCategory: AIModel] = [:]
     public private(set) var recentChanges: [ModelChangeEvent] = []
+    public private(set) var freeModelCount: Int?
 
     public init(
         usageRepository: (any UsageSnapshotRepositoryProtocol)? = nil,
@@ -77,9 +78,30 @@ public actor RefreshCoordinator {
         }
     }
 
-    public func updateRankings(bestFree: [RankingCategory: AIModel], changes: [ModelChangeEvent]) {
+    public func updateRankings(
+        bestFree: [RankingCategory: AIModel],
+        changes: [ModelChangeEvent],
+        freeModelCount: Int? = nil
+    ) {
         self.bestFree = bestFree
         self.recentChanges = changes
+        self.freeModelCount = freeModelCount ?? self.freeModelCount
+    }
+
+    /// Re-publishes the widget payload without running a refresh.
+    ///
+    /// The catalog lands after the usage pass, so whatever it learned — the
+    /// rankings, the free-model count — would otherwise miss that pass's write
+    /// and sit unpublished until the next one.
+    public func publishWidgetSnapshot() async {
+        guard let widgetWriter else { return }
+        do {
+            try await widgetWriter.write(WidgetSnapshot(dashboard: snapshot(), now: now()))
+        } catch {
+            AIMeterLog.widget.error(
+                "Widget snapshot write failed: \(String(describing: error), privacy: .public)"
+            )
+        }
     }
 
     public func snapshot() -> DashboardSnapshot {
@@ -88,7 +110,8 @@ public actor RefreshCoordinator {
             usage: Array(snapshots.values).sorted { $0.accountID < $1.accountID },
             statuses: Array(statuses.values).sorted { $0.accountID < $1.accountID },
             bestFree: bestFree,
-            recentChanges: recentChanges
+            recentChanges: recentChanges,
+            freeModelCount: freeModelCount
         )
     }
 
@@ -150,7 +173,7 @@ public actor RefreshCoordinator {
                 statuses[accountID] = ProviderStatus(
                     accountID: accountID,
                     provider: registration.account.provider,
-                    displayName: registration.account.displayName,
+                    displayName: snapshot.accountDisplayName ?? registration.account.displayName,
                     lastSuccessAt: attemptedAt,
                     lastAttemptAt: attemptedAt
                 )
@@ -161,7 +184,8 @@ public actor RefreshCoordinator {
                 statuses[accountID] = ProviderStatus(
                     accountID: accountID,
                     provider: registration.account.provider,
-                    displayName: registration.account.displayName,
+                    displayName: statuses[accountID]?.displayName
+                        ?? registration.account.displayName,
                     lastSuccessAt: statuses[accountID]?.lastSuccessAt,
                     lastAttemptAt: attemptedAt,
                     lastErrorDescription: (error as? ProviderError)?.errorDescription

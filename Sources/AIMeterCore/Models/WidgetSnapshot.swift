@@ -2,8 +2,16 @@ import Foundation
 
 /// The tiny, credential-free payload handed to WidgetKit through the App Group.
 /// The widget performs no networking and never opens the history database.
+extension WidgetSnapshot.Window {
+    init(_ window: RateLimitWindow) {
+        self.init(usedFraction: window.usedFraction, resetsAt: window.resetsAt)
+    }
+}
+
 public struct WidgetSnapshot: Codable, Sendable, Hashable {
-    public static let schemaVersion = 1
+    /// v2 carries both quota windows per account instead of one, plus a detail
+    /// line for accounts whose story is not a percentage.
+    public static let schemaVersion = 2
 
     public struct BestModel: Codable, Sendable, Hashable {
         public let name: String
@@ -15,25 +23,53 @@ public struct WidgetSnapshot: Codable, Sendable, Hashable {
         }
     }
 
+    /// One quota window, reduced to what a widget can draw.
+    public struct Window: Codable, Sendable, Hashable {
+        public let usedFraction: Double?
+        public let resetsAt: Date?
+
+        public init(usedFraction: Double?, resetsAt: Date?) {
+            self.usedFraction = usedFraction
+            self.resetsAt = resetsAt
+        }
+    }
+
     public struct AccountUsage: Codable, Sendable, Hashable, Identifiable {
         public let id: String
         public let displayName: String
-        public let primaryUsage: Double?
-        public let resetsAt: Date?
+
+        /// Short window (5-hour/session) and long window (weekly), shown as two
+        /// columns. Either can be absent: not every provider reports both.
+        public let shortWindow: Window?
+        public let longWindow: Window?
+
+        /// For an account whose story is not a percentage — OpenRouter's credits
+        /// and free-model count, for instance.
+        public let detail: String?
+
         public let isStale: Bool
 
         public init(
             id: String,
             displayName: String,
-            primaryUsage: Double?,
-            resetsAt: Date?,
+            shortWindow: Window?,
+            longWindow: Window?,
+            detail: String? = nil,
             isStale: Bool
         ) {
             self.id = id
             self.displayName = displayName
-            self.primaryUsage = primaryUsage
-            self.resetsAt = resetsAt
+            self.shortWindow = shortWindow
+            self.longWindow = longWindow
+            self.detail = detail
             self.isStale = isStale
+        }
+
+        /// Whichever window is closest to being spent, for the small widget.
+        public var leadingWindow: Window? {
+            [shortWindow, longWindow]
+                .compactMap { $0 }
+                .max { ($0.usedFraction ?? -1) < ($1.usedFraction ?? -1) }
         }
     }
 
@@ -42,11 +78,22 @@ public struct WidgetSnapshot: Codable, Sendable, Hashable {
     public let bestFree: [String: BestModel]
     public let accounts: [AccountUsage]
 
-    public init(generatedAt: Date, bestFree: [String: BestModel], accounts: [AccountUsage]) {
+    /// How many genuine free variants the catalog currently offers. Shown when
+    /// no benchmark source is configured, so the row says something true rather
+    /// than a score nobody measured.
+    public let freeModelCount: Int?
+
+    public init(
+        generatedAt: Date,
+        bestFree: [String: BestModel],
+        accounts: [AccountUsage],
+        freeModelCount: Int? = nil
+    ) {
         self.schemaVersion = Self.schemaVersion
         self.generatedAt = generatedAt
         self.bestFree = bestFree
         self.accounts = accounts
+        self.freeModelCount = freeModelCount
     }
 
     /// Projects a dashboard snapshot down to what a widget can render.
@@ -73,12 +120,29 @@ public struct WidgetSnapshot: Codable, Sendable, Hashable {
             AccountUsage(
                 id: snapshot.accountID,
                 displayName: namesByAccount[snapshot.accountID] ?? snapshot.provider.displayName,
-                primaryUsage: snapshot.primaryWindow?.usedFraction,
-                resetsAt: snapshot.primaryWindow?.resetsAt,
+                shortWindow: snapshot.shortWindow.map(Window.init),
+                longWindow: snapshot.longWindow.map(Window.init),
+                detail: Self.detail(for: snapshot),
                 isStale: Freshness.of(snapshot.capturedAt, now: now) == .stale
             )
         }
 
-        self.init(generatedAt: dashboard.generatedAt, bestFree: best, accounts: accounts)
+        self.init(
+            generatedAt: dashboard.generatedAt,
+            bestFree: best,
+            accounts: accounts,
+            freeModelCount: dashboard.freeModelCount
+        )
+    }
+
+    /// An account with no quota windows still has something worth showing.
+    private static func detail(for snapshot: UsageSnapshot) -> String? {
+        guard snapshot.shortWindow == nil, snapshot.longWindow == nil else { return nil }
+
+        if let credits = snapshot.creditsRemainingUSD {
+            let amount = NSDecimalNumber(decimal: credits).doubleValue
+            return String(format: "$%.2f left", amount)
+        }
+        return snapshot.planLabel
     }
 }

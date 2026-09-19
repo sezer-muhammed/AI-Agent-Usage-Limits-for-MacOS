@@ -62,7 +62,8 @@ public struct CodexAccountAdapter: UsageProvider, Sendable {
             windows: data.rateLimits,
             creditsRemainingUSD: data.creditsRemainingUSD,
             activeModelID: nil,
-            planLabel: data.planLabel
+            planLabel: data.planLabel,
+            accountDisplayName: data.account?.shortName
         )
     }
 

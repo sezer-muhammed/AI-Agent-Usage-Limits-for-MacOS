@@ -86,6 +86,7 @@ private struct OpenRouterSettings: View {
         let entered = key.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
             try await state.environment.keychain.setSecret(entered, for: .openRouterAPIKey)
+            await state.environment.openRouterKey.invalidate()
             _ = try await state.environment.openRouterClient.testConnection()
             message = "Connected."
             key = ""
@@ -99,6 +100,7 @@ private struct OpenRouterSettings: View {
 
     private func remove() async {
         try? await state.environment.keychain.deleteSecret(for: .openRouterAPIKey)
+        await state.environment.openRouterKey.invalidate()
         storedHint = nil
         message = "Key removed."
     }

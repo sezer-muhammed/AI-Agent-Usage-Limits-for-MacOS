@@ -13,6 +13,9 @@ final class AppEnvironment {
     static let widgetBundleIdentifier = "com.sezer-muhammed.aimeter.widget"
 
     let keychain = KeychainStore()
+    /// One Keychain read per launch instead of one per request — see
+    /// `CachedCredential` for why that matters on an ad-hoc signed build.
+    let openRouterKey: CachedCredential
     let coordinator: RefreshCoordinator
 
     /// Where the widget payload is published; surfaced so Settings can show it.
@@ -27,7 +30,9 @@ final class AppEnvironment {
 
     init() {
         let keychain = self.keychain
-        openRouterClient = OpenRouterClient(keychain: keychain)
+        let openRouterKey = CachedCredential(keychain: keychain, key: .openRouterAPIKey)
+        self.openRouterKey = openRouterKey
+        openRouterClient = OpenRouterClient { try await openRouterKey.value() }
 
         codexAccounts = [
             CodexAccountAdapter(

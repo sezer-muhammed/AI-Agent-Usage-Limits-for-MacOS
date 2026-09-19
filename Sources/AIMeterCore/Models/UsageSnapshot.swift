@@ -23,6 +23,11 @@ public struct UsageSnapshot: Codable, Sendable, Hashable, Identifiable {
     /// Free-form, provider-supplied plan label ("pro", "free tier", …) when exposed.
     public let planLabel: String?
 
+    /// What this account calls itself, when the provider tells us — the local
+    /// part of the signed-in email for Codex. Beats a configured nickname
+    /// because it survives the user re-signing a profile into another account.
+    public let accountDisplayName: String?
+
     public init(
         provider: Provider,
         accountID: String,
@@ -33,7 +38,8 @@ public struct UsageSnapshot: Codable, Sendable, Hashable, Identifiable {
         spendMonthUSD: Decimal? = nil,
         creditsRemainingUSD: Decimal? = nil,
         activeModelID: String? = nil,
-        planLabel: String? = nil
+        planLabel: String? = nil,
+        accountDisplayName: String? = nil
     ) {
         self.provider = provider
         self.accountID = accountID
@@ -45,10 +51,21 @@ public struct UsageSnapshot: Codable, Sendable, Hashable, Identifiable {
         self.creditsRemainingUSD = creditsRemainingUSD
         self.activeModelID = activeModelID
         self.planLabel = planLabel
+        self.accountDisplayName = accountDisplayName
     }
 
     /// The window the UI should lead with for this account.
     public var primaryWindow: RateLimitWindow? {
         windows.max { ($0.usedFraction ?? -1) < ($1.usedFraction ?? -1) }
+    }
+
+    /// The short window (5-hour/session) and the long one (weekly/7-day), which
+    /// is what a person actually wants to see side by side.
+    public var shortWindow: RateLimitWindow? {
+        windows.first { $0.kind == .fiveHour || $0.kind == .session }
+    }
+
+    public var longWindow: RateLimitWindow? {
+        windows.first { $0.kind == .weekly || $0.kind == .monthly || $0.kind == .daily }
     }
 }

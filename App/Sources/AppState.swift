@@ -44,7 +44,14 @@ final class AppState {
         try? await environment.modelRepository?.record(models: fetched, capturedAt: Date())
 
         let ranked = ModelRankingEngine().bestFree(fetched)
-        await environment.coordinator.updateRankings(bestFree: ranked, changes: [])
+        await environment.coordinator.updateRankings(
+            bestFree: ranked,
+            changes: [],
+            freeModelCount: fetched.filter(\.isFreeVariant).count
+        )
+        // The usage pass already wrote the widget payload; publish again so the
+        // catalog's numbers are not held back until the next refresh.
+        await environment.coordinator.publishWidgetSnapshot()
         snapshot = await environment.coordinator.snapshot()
     }
 
