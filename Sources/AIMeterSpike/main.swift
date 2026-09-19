@@ -1,1 +1,196 @@
-// placeholder
+import AIMeterCore
+import AIMeterProviders
+import Foundation
+
+// aimeter-spike — the integration feasibility harness from section 86 of the
+// specification.
+//
+// It proves the four provider flows against real installations and prints one
+// normalized JSON document. This runs before any UI work: if a provider cannot
+// supply a field, that has to be visible here rather than discovered later.
+//
+// Usage:
+//   OPENROUTER_API_KEY=... swift run aimeter-spike
+//   swift run aimeter-spike --codex-home-a ~/.codex-aimeter-personal
+//
+// The output can contain real account data (plan, spend, reset times), so it is
+// printed to stdout and never written into the repository.
+
+struct Options {
+    var openRouterKey: String? = ProcessInfo.processInfo.environment["OPENROUTER_API_KEY"]
+    var codexHomeA = URL(
+        fileURLWithPath: NSString(string: "~/.codex-aimeter-personal").expandingTildeInPath
+    )
+    var codexHomeB = URL(
+        fileURLWithPath: NSString(string: "~/.codex-aimeter-secondary").expandingTildeInPath
+    )
+    var claudeTelemetryURL = ClaudeTelemetry.defaultURL()
+
+    init(_ raw: [String]) {
+        var index = 0
+        while index < raw.count {
+            let next = index + 1 < raw.count ? raw[index + 1] : nil
+            switch raw[index] {
+            case "--codex-home-a":
+                if let next { codexHomeA = URL(fileURLWithPath: NSString(string: next).expandingTildeInPath) }
+                index += 2
+            case "--codex-home-b":
+                if let next { codexHomeB = URL(fileURLWithPath: NSString(string: next).expandingTildeInPath) }
+                index += 2
+            case "--claude-telemetry":
+                if let next { claudeTelemetryURL = URL(fileURLWithPath: next) }
+                index += 2
+            default:
+                index += 1
+            }
+        }
+    }
+}
+
+let options = Options(Array(CommandLine.arguments.dropFirst()))
+var notes: [String] = []
+
+// MARK: OpenRouter
+
+let openRouterKey = options.openRouterKey
+let openRouterClient = OpenRouterClient { openRouterKey }
+let modelsAdapter = OpenRouterModelsAdapter(client: openRouterClient)
+
+var catalog: [AIModel] = []
+var openRouterSection: SpikeReport.ProviderSection
+
+do {
+    catalog = try await modelsAdapter.fetchModels()
+    let free = catalog.filter(\.isFreeVariant)
+
+    if openRouterKey?.isEmpty == false {
+        let usage = try await OpenRouterUsageAdapter(client: openRouterClient).fetchUsage()
+        openRouterSection = SpikeReport.ProviderSection(
+            status: "ok",
+            detail: "\(catalog.count) models, \(free.count) free variants",
+            planLabel: usage.planLabel,
+            windows: usage.windows.map(SpikeReport.Window.init),
+            spendTodayUSD: usage.spendTodayUSD.map { "\($0)" },
+            creditsRemainingUSD: usage.creditsRemainingUSD.map { "\($0)" },
+            modelCount: catalog.count,
+            sampleModels: free.prefix(5).map(\.id),
+            capturedAt: usage.capturedAt
+        )
+    } else {
+        // The catalog is public, so the spike still proves that half of the flow.
+        openRouterSection = SpikeReport.ProviderSection(
+            status: "partial",
+            detail: "no API key supplied; catalog read only",
+            modelCount: catalog.count,
+            sampleModels: free.prefix(5).map(\.id)
+        )
+        notes.append("Set OPENROUTER_API_KEY to exercise /key and /credits.")
+    }
+} catch {
+    openRouterSection = .failed(error)
+}
+
+// Benchmarks are not exposed by the OpenRouter catalog, so nothing is invented
+// here: without a benchmark source the ranking engine correctly ranks nothing.
+let ranked = ModelRankingEngine().bestFree(catalog)
+if ranked.isEmpty && !catalog.isEmpty {
+    notes.append(
+        "No benchmark source is configured, so no free model can be ranked. "
+            + "The catalog itself carries no intelligence/coding/agentic scores."
+    )
+}
+
+// MARK: Claude
+
+let claudeReader = ClaudeBridgeReader(url: options.claudeTelemetryURL)
+let claudeAdapter = ClaudeStatusAdapter(reader: claudeReader)
+
+let claudeSection: SpikeReport.ProviderSection
+do {
+    let usage = try await claudeAdapter.fetchUsage()
+    claudeSection = SpikeReport.ProviderSection(
+        status: usage.windows.isEmpty ? "partial" : "ok",
+        detail: usage.windows.isEmpty
+            ? "bridge installed but no rate_limits yet (subscription-only, appears after the first API response)"
+            : nil,
+        windows: usage.windows.map(SpikeReport.Window.init),
+        capturedAt: usage.capturedAt,
+        freshness: claudeAdapter.freshness()?.rawValue
+    )
+} catch {
+    claudeSection = .failed(error)
+    notes.append("Install the Claude bridge to populate \(options.claudeTelemetryURL.path).")
+}
+
+// MARK: Codex, both accounts independently
+
+func readCodex(accountID: String, displayName: String, home: URL) async -> SpikeReport.ProviderSection
+{
+    let adapter = CodexAccountAdapter(accountID: accountID, displayName: displayName, codexHome: home)
+    do {
+        let data = try await adapter.read()
+        return SpikeReport.ProviderSection(
+            status: data.rateLimits.isEmpty ? "partial" : "ok",
+            detail: data.requiresAuthentication
+                ? "profile is not signed in; model/list still works"
+                : nil,
+            planLabel: data.planLabel,
+            windows: data.rateLimits.map(SpikeReport.Window.init),
+            creditsRemainingUSD: data.creditsRemainingUSD.map { "\($0)" },
+            modelCount: data.models.count,
+            sampleModels: data.models.prefix(5).map(\.id),
+            capturedAt: Date(),
+            unsupportedMethods: data.unsupported.isEmpty ? nil : data.unsupported
+        )
+    } catch {
+        return .failed(error)
+    }
+}
+
+let codexPersonal = await readCodex(
+    accountID: "codex-personal",
+    displayName: "Codex Personal",
+    home: options.codexHomeA
+)
+let codexSecondary = await readCodex(
+    accountID: "codex-secondary",
+    displayName: "Codex Secondary",
+    home: options.codexHomeB
+)
+
+if codexPersonal.planLabel == nil || codexSecondary.planLabel == nil {
+    notes.append(
+        "Sign each profile in separately: CODEX_HOME=<profile> codex login. "
+            + "Never copy auth.json between profiles — refresh-token rotation breaks the copy."
+    )
+}
+
+// MARK: Report
+
+let report = SpikeReport(
+    generatedAt: Date(),
+    openrouter: openRouterSection,
+    claude: claudeSection,
+    codexPersonal: codexPersonal,
+    codexSecondary: codexSecondary,
+    bestFreeModels: ranked.map { category, model in
+        SpikeReport.BestModel(
+            category: category.rawValue,
+            model: model.displayName,
+            providerModelID: model.id,
+            intelligence: model.benchmark?.intelligence,
+            coding: model.benchmark?.coding,
+            agentic: model.benchmark?.agentic,
+            availability: model.availability?.percentage
+        )
+    },
+    notes: notes
+)
+
+let encoder = DateFormatting.makeEncoder(prettyPrinted: true)
+if let data = try? encoder.encode(report), let text = String(data: data, encoding: .utf8) {
+    print(text)
+} else {
+    FileHandle.standardError.write(Data("failed to encode spike report\n".utf8))
+    exit(1)
+}

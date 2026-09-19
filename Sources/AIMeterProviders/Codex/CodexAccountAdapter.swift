@@ -49,6 +49,12 @@ public struct CodexAccountAdapter: UsageProvider, Sendable {
     public func fetchUsage() async throws -> UsageSnapshot {
         let data = try await client.read()
 
+        // A signed-out profile has no usage to report; say so with a typed error
+        // rather than presenting an all-zero card.
+        if data.requiresAuthentication && data.rateLimits.isEmpty {
+            throw ProviderError.unauthorized
+        }
+
         return UsageSnapshot(
             provider: .codex,
             accountID: accountID,

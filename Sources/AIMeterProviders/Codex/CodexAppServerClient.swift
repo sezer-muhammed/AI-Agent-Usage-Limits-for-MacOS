@@ -13,6 +13,9 @@ public struct CodexAppServerClient: Sendable {
         /// Reads the installed Codex version did not support, surfaced in the UI
         /// as "unavailable in this version" rather than silently dropped.
         public let unsupported: [String]
+        /// True when this profile is not signed in. Model listing still works,
+        /// so the reads that need an account are reported rather than fatal.
+        public let requiresAuthentication: Bool
     }
 
     public struct CodexAccountInfo: Sendable {
@@ -43,8 +46,9 @@ public struct CodexAppServerClient: Sendable {
         try await controller.start()
 
         var unsupported: [String] = []
+        var requiresAuthentication = false
 
-        let account = try await optional(&unsupported, "account/read") {
+        let account = try await optional(&unsupported, &requiresAuthentication, "account/read") {
             try await controller.request(
                 CodexDTO.GetAccountResponse.self,
                 method: "account/read",
@@ -52,7 +56,7 @@ public struct CodexAppServerClient: Sendable {
             )
         }
 
-        let limits = try await optional(&unsupported, "account/rateLimits/read") {
+        let limits = try await optional(&unsupported, &requiresAuthentication, "account/rateLimits/read") {
             try await controller.request(
                 CodexDTO.GetAccountRateLimitsResponse.self,
                 method: "account/rateLimits/read",
@@ -61,7 +65,7 @@ public struct CodexAppServerClient: Sendable {
         }
 
         // Token usage is informational; its absence must not fail the refresh.
-        _ = try await optional(&unsupported, "account/usage/read") {
+        _ = try await optional(&unsupported, &requiresAuthentication, "account/usage/read") {
             try await controller.request(
                 CodexDTO.GetAccountTokenUsageResponse.self,
                 method: "account/usage/read",
@@ -69,7 +73,7 @@ public struct CodexAppServerClient: Sendable {
             )
         }
 
-        let models = try await optional(&unsupported, "model/list") {
+        let models = try await optional(&unsupported, &requiresAuthentication, "model/list") {
             try await controller.request(
                 CodexDTO.ModelListResponse.self,
                 method: "model/list",
@@ -88,19 +92,25 @@ public struct CodexAppServerClient: Sendable {
             creditsRemainingUSD: credits,
             planLabel: account?.account?.planType ?? snapshot?.planType,
             models: (models?.data ?? []).compactMap(normalize),
-            unsupported: unsupported
+            unsupported: unsupported,
+            requiresAuthentication: requiresAuthentication || account?.requiresOpenaiAuth == true
         )
     }
 
-    /// Runs a read, recording methods the installed version rejects instead of
-    /// aborting the whole refresh.
+    /// Runs a read, recording the reads this installation cannot serve instead
+    /// of aborting the whole refresh. A signed-out profile still lists models,
+    /// and an older Codex still reports the limits it does have.
     private func optional<T: Sendable>(
         _ unsupported: inout [String],
+        _ requiresAuthentication: inout Bool,
         _ method: String,
         _ body: () async throws -> T
     ) async throws -> T? {
         do {
             return try await body()
+        } catch ProviderError.unauthorized {
+            requiresAuthentication = true
+            return nil
         } catch ProviderError.unsupportedByInstalledVersion {
             unsupported.append(method)
             return nil
