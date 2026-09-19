@@ -53,10 +53,28 @@ swift run aimeter-spike \
 
 ### OpenRouter
 
-Supply the API key through the app's Settings once the UI exists; it is stored
-only in the macOS Keychain (service `com.sezer-muhammed.aimeter.credentials`,
-account `openrouter-api-key`). The `OPENROUTER_API_KEY` environment variable is
-a convenience for the spike harness only.
+Create a key at <https://openrouter.ai/keys>. A free account is enough: the free
+`:free` model variants and the usage endpoints both work without credit.
+
+Store it once. The key goes into the macOS Keychain (service
+`com.sezer-muhammed.aimeter.credentials`, account `openrouter-api-key`) — the
+same place the app's Settings will use, so nothing changes when that UI lands:
+
+```bash
+swift run aimeter-spike --set-openrouter-key
+```
+
+It reads the key from stdin rather than from an argument, so the key never
+reaches your shell history or the process list, and it verifies the key against
+the live API before reporting success. To remove it:
+
+```bash
+swift run aimeter-spike --forget-openrouter-key
+```
+
+After that, `swift run aimeter-spike` picks the key up on its own. The
+`OPENROUTER_API_KEY` environment variable still overrides the Keychain for
+one-off runs and CI.
 
 ### Claude
 

@@ -10,14 +10,22 @@ import Foundation
 // supply a field, that has to be visible here rather than discovered later.
 //
 // Usage:
-//   OPENROUTER_API_KEY=... swift run aimeter-spike
+//   swift run aimeter-spike
+//   swift run aimeter-spike --set-openrouter-key      (reads the key from stdin)
+//   swift run aimeter-spike --forget-openrouter-key
 //   swift run aimeter-spike --codex-home-a ~/.codex-aimeter-personal
 //
 // The output can contain real account data (plan, spend, reset times), so it is
 // printed to stdout and never written into the repository.
 
+enum Command {
+    case runSpike
+    case setOpenRouterKey
+    case forgetOpenRouterKey
+}
+
 struct Options {
-    var openRouterKey: String? = ProcessInfo.processInfo.environment["OPENROUTER_API_KEY"]
+    var command: Command = .runSpike
     var codexHomeA = URL(
         fileURLWithPath: NSString(string: "~/.codex-aimeter-personal").expandingTildeInPath
     )
@@ -40,6 +48,12 @@ struct Options {
             case "--claude-telemetry":
                 if let next { claudeTelemetryURL = URL(fileURLWithPath: next) }
                 index += 2
+            case "--set-openrouter-key":
+                command = .setOpenRouterKey
+                index += 1
+            case "--forget-openrouter-key":
+                command = .forgetOpenRouterKey
+                index += 1
             default:
                 index += 1
             }
@@ -48,11 +62,78 @@ struct Options {
 }
 
 let options = Options(Array(CommandLine.arguments.dropFirst()))
+let keychain = KeychainStore()
+
+// MARK: Credential commands
+//
+// The app will do this from Settings; until that UI exists these two commands
+// put the key in the same place — the Keychain — so nothing has to change later.
+
+switch options.command {
+case .setOpenRouterKey:
+    // Read from stdin, never from an argument: an argument would land in shell
+    // history and in the process list.
+    FileHandle.standardError.write(Data("Paste your OpenRouter API key, then press Return:\n".utf8))
+    let entered = readLine(strippingNewline: true)?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    guard let entered, !entered.isEmpty else {
+        FileHandle.standardError.write(Data("No key entered; nothing was stored.\n".utf8))
+        exit(1)
+    }
+
+    do {
+        try await keychain.setSecret(entered, for: .openRouterAPIKey)
+    } catch {
+        FileHandle.standardError.write(Data("Could not write to the Keychain: \(error)\n".utf8))
+        exit(1)
+    }
+
+    // Prove the key works before declaring success.
+    let client = OpenRouterClient(keychain: keychain)
+    do {
+        _ = try await client.testConnection()
+        print("Stored in the Keychain and verified: \(KeychainStore.redacted(entered))")
+    } catch {
+        print(
+            "Stored in the Keychain as \(KeychainStore.redacted(entered)), "
+                + "but the connection test failed: "
+                + ((error as? ProviderError)?.errorDescription ?? error.localizedDescription)
+        )
+        exit(1)
+    }
+    exit(0)
+
+case .forgetOpenRouterKey:
+    do {
+        try await keychain.deleteSecret(for: .openRouterAPIKey)
+        print("Removed the OpenRouter key from the Keychain.")
+    } catch {
+        FileHandle.standardError.write(Data("Could not remove the key: \(error)\n".utf8))
+        exit(1)
+    }
+    exit(0)
+
+case .runSpike:
+    break
+}
+
 var notes: [String] = []
 
 // MARK: OpenRouter
 
-let openRouterKey = options.openRouterKey
+// The Keychain is the real source. The environment variable stays supported as a
+// convenience for one-off runs and for CI, and takes precedence when set.
+func resolveOpenRouterKey(_ keychain: KeychainStore) async -> String? {
+    if let fromEnvironment = ProcessInfo.processInfo.environment["OPENROUTER_API_KEY"],
+        !fromEnvironment.isEmpty
+    {
+        return fromEnvironment
+    }
+    return try? await keychain.secret(for: .openRouterAPIKey)
+}
+
+let openRouterKey = await resolveOpenRouterKey(keychain)
+
 let openRouterClient = OpenRouterClient { openRouterKey }
 let modelsAdapter = OpenRouterModelsAdapter(client: openRouterClient)
 
@@ -84,7 +165,10 @@ do {
             modelCount: catalog.count,
             sampleModels: free.prefix(5).map(\.id)
         )
-        notes.append("Set OPENROUTER_API_KEY to exercise /key and /credits.")
+        notes.append(
+            "No OpenRouter key configured, so /key and /credits were not exercised. "
+                + "Store one with: swift run aimeter-spike --set-openrouter-key"
+        )
     }
 } catch {
     openRouterSection = .failed(error)
