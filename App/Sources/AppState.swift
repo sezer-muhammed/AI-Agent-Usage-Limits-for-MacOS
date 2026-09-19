@@ -50,7 +50,8 @@ final class AppState {
         await environment.coordinator.updateRankings(
             bestFree: ranked,
             changes: [],
-            freeModelCount: models.filter(\.isFreeVariant).count
+            freeModelCount: models.filter(\.isFreeVariant).count,
+            newestFreeModel: newestFreeModel
         )
         // The usage pass already wrote the widget payload; publish again so the
         // catalog's numbers are not held back until the next refresh.
@@ -114,4 +115,12 @@ final class AppState {
     }
 
     var freeModelCount: Int { models.filter(\.isFreeVariant).count }
+
+    /// Newest free variant by publication date. Models the catalog does not date
+    /// simply do not compete for the slot.
+    var newestFreeModel: AIModel? {
+        models
+            .filter { $0.isFreeVariant && $0.createdAt != nil }
+            .max { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
+    }
 }

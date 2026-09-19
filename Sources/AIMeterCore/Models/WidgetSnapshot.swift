@@ -9,9 +9,8 @@ extension WidgetSnapshot.Window {
 }
 
 public struct WidgetSnapshot: Codable, Sendable, Hashable {
-    /// v2 carries both quota windows per account instead of one, plus a detail
-    /// line for accounts whose story is not a percentage.
-    public static let schemaVersion = 2
+    /// v3 adds the catalog column: newest free model alongside the best one.
+    public static let schemaVersion = 3
 
     public struct BestModel: Codable, Sendable, Hashable {
         public let name: String
@@ -87,17 +86,25 @@ public struct WidgetSnapshot: Codable, Sendable, Hashable {
     /// than a score nobody measured.
     public let freeModelCount: Int?
 
+    /// Most recently published free variant, for the catalog column.
+    public let newestFreeModel: BestModel?
+    public let newestFreeModelDate: Date?
+
     public init(
         generatedAt: Date,
         bestFree: [String: BestModel],
         accounts: [AccountUsage],
-        freeModelCount: Int? = nil
+        freeModelCount: Int? = nil,
+        newestFreeModel: BestModel? = nil,
+        newestFreeModelDate: Date? = nil
     ) {
         self.schemaVersion = Self.schemaVersion
         self.generatedAt = generatedAt
         self.bestFree = bestFree
         self.accounts = accounts
         self.freeModelCount = freeModelCount
+        self.newestFreeModel = newestFreeModel
+        self.newestFreeModelDate = newestFreeModelDate
     }
 
     /// Projects a dashboard snapshot down to what a widget can render.
@@ -139,7 +146,15 @@ public struct WidgetSnapshot: Codable, Sendable, Hashable {
             generatedAt: dashboard.generatedAt,
             bestFree: best,
             accounts: accounts,
-            freeModelCount: dashboard.freeModelCount
+            freeModelCount: dashboard.freeModelCount,
+            newestFreeModel: dashboard.newestFreeModel.map {
+                BestModel(
+                    name: $0.displayName,
+                    score: $0.benchmark?.intelligence,
+                    isEstimate: $0.benchmark?.source.isEstimate ?? false
+                )
+            },
+            newestFreeModelDate: dashboard.newestFreeModel?.createdAt
         )
     }
 

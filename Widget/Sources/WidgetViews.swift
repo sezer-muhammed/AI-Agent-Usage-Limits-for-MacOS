@@ -79,9 +79,10 @@ private struct WindowCell: View {
 
 private struct AccountRow: View {
     let account: WidgetSnapshot.AccountUsage
+    var nameWidth: CGFloat = 92
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: 8) {
             HStack(spacing: 3) {
                 Text(account.displayName)
                     .font(.caption)
@@ -96,7 +97,7 @@ private struct AccountRow: View {
                         .accessibilityLabel("stale")
                 }
             }
-            .frame(width: 92, alignment: .leading)
+            .frame(width: nameWidth, alignment: .leading)
 
             if let detail = account.detail {
                 Text(detail)
@@ -240,6 +241,121 @@ struct SmallWidgetView: View {
     }
 }
 
+/// The catalog column: what OpenRouter offers right now, opposite the usage.
+private struct CatalogColumn: View {
+    let snapshot: WidgetSnapshot
+    var showNewest = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let best = snapshot.bestFree["general"] {
+                entry(
+                    caption: "SMARTEST FREE",
+                    name: best.name,
+                    trailing: best.score.map {
+                        // "~" marks an estimate, so it never reads as measured.
+                        "\(best.isEstimate ? "~" : "")\(String(format: "%.1f", $0))"
+                    }
+                )
+            }
+
+            if let coding = snapshot.bestFree["coding"] {
+                entry(
+                    caption: "BEST CODING",
+                    name: coding.name,
+                    trailing: coding.score.map {
+                        "\(coding.isEstimate ? "~" : "")\(String(format: "%.1f", $0))"
+                    }
+                )
+            }
+
+            if showNewest, let newest = snapshot.newestFreeModel {
+                entry(
+                    caption: "NEWEST FREE",
+                    name: newest.name,
+                    trailing: snapshot.newestFreeModelDate.map { Self.age($0) }
+                )
+            }
+
+            Spacer(minLength: 0)
+
+            if let count = snapshot.freeModelCount {
+                Text("\(count) free models")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    private func entry(caption: String, name: String, trailing: String?) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 4) {
+                Text(caption)
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                Spacer(minLength: 2)
+                if let trailing {
+                    Text(trailing)
+                        .font(.system(size: 8, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Text(name)
+                .font(.caption)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
+        }
+    }
+
+    /// "3d" / "2w" — how recently the model appeared.
+    private static func age(_ date: Date, now: Date = Date()) -> String {
+        let days = Int(now.timeIntervalSince(date) / 86_400)
+        if days < 1 { return "today" }
+        if days < 7 { return "\(days)d" }
+        return "\(days / 7)w"
+    }
+}
+
+/// Usage on the left, catalog on the right, at the requested 2:1 ratio.
+private struct SplitLayout<Usage: View, Catalog: View>: View {
+    @ViewBuilder var usage: Usage
+    @ViewBuilder var catalog: Catalog
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            usage.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .layoutPriority(2)
+
+            Divider()
+
+            catalog.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .layoutPriority(1)
+        }
+    }
+}
+
+/// Splits a width 2:1 without hard-coding pixel widths.
+private struct ProportionalSplit<Usage: View, Catalog: View>: View {
+    let ratio: CGFloat
+    @ViewBuilder var usage: Usage
+    @ViewBuilder var catalog: Catalog
+
+    var body: some View {
+        GeometryReader { proxy in
+            let dividerSpace: CGFloat = 21
+            let usableWidth = max(proxy.size.width - dividerSpace, 0)
+            let usageWidth = usableWidth * ratio / (ratio + 1)
+
+            HStack(alignment: .top, spacing: 8) {
+                usage.frame(width: usageWidth, alignment: .topLeading)
+                Divider()
+                catalog.frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+        }
+    }
+}
+
 struct MediumWidgetView: View {
     let snapshot: WidgetSnapshot?
 
@@ -251,29 +367,70 @@ struct MediumWidgetView: View {
         return AnyView(
             VStack(alignment: .leading, spacing: 6) {
                 WidgetTitle(generatedAt: snapshot.generatedAt)
-                FreeModelLine(snapshot: snapshot)
 
-                // Column headers: the two numbers on a row are different windows,
-                // which nothing said before.
-                HStack(spacing: 10) {
-                    Color.clear.frame(width: 92, height: 1)
-                    Text("5-HOUR")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Text("WEEKLY")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .font(.system(size: 8, weight: .semibold))
-                .foregroundStyle(.tertiary)
-
-                // Rows share the remaining height instead of leaving it empty.
-                VStack(spacing: 0) {
-                    ForEach(snapshot.accounts) { account in
-                        AccountRow(account: account)
-                            .frame(maxHeight: .infinity)
+                ProportionalSplit(ratio: 2) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ColumnHeaders(nameWidth: 66)
+                        VStack(spacing: 0) {
+                            ForEach(snapshot.accounts) { account in
+                                AccountRow(account: account, nameWidth: 66)
+                                    .frame(maxHeight: .infinity)
+                            }
+                        }
                     }
+                } catalog: {
+                    // The medium widget is too short for three catalog entries.
+                    CatalogColumn(snapshot: snapshot, showNewest: false)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         )
+    }
+}
+
+struct LargeWidgetView: View {
+    let snapshot: WidgetSnapshot?
+
+    var body: some View {
+        guard let snapshot, !snapshot.accounts.isEmpty else {
+            return AnyView(EmptyState())
+        }
+
+        return AnyView(
+            VStack(alignment: .leading, spacing: 8) {
+                WidgetTitle(generatedAt: snapshot.generatedAt)
+
+                ProportionalSplit(ratio: 2) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ColumnHeaders(nameWidth: 92)
+                        VStack(spacing: 0) {
+                            ForEach(snapshot.accounts) { account in
+                                AccountRow(account: account, nameWidth: 92)
+                                    .frame(maxHeight: .infinity)
+                            }
+                        }
+                    }
+                } catalog: {
+                    CatalogColumn(snapshot: snapshot)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        )
+    }
+}
+
+/// Column headers: the two numbers on a row are different windows, which
+/// nothing said before they existed.
+private struct ColumnHeaders: View {
+    let nameWidth: CGFloat
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Color.clear.frame(width: nameWidth, height: 1)
+            Text("5-HOUR").frame(maxWidth: .infinity, alignment: .leading)
+            Text("WEEKLY").frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .font(.system(size: 8, weight: .semibold))
+        .foregroundStyle(.tertiary)
     }
 }

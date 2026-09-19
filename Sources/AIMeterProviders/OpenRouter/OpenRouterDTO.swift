@@ -24,6 +24,8 @@ enum OpenRouterDTO {
         let pricing: Pricing?
         let topProvider: TopProvider?
         let benchmarks: Benchmarks?
+        /// Unix epoch seconds.
+        let created: Double?
 
         enum CodingKeys: String, CodingKey {
             case id
@@ -34,6 +36,7 @@ enum OpenRouterDTO {
             case pricing
             case topProvider = "top_provider"
             case benchmarks
+            case created
         }
     }
 

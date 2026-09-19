@@ -18,13 +18,17 @@ public struct DashboardSnapshot: Codable, Sendable, Hashable {
     /// Genuine free variants in the current catalog.
     public let freeModelCount: Int?
 
+    /// The most recently published free variant, when the catalog dates them.
+    public let newestFreeModel: AIModel?
+
     public init(
         generatedAt: Date,
         usage: [UsageSnapshot],
         statuses: [ProviderStatus],
         bestFree: [RankingCategory: AIModel],
         recentChanges: [ModelChangeEvent] = [],
-        freeModelCount: Int? = nil
+        freeModelCount: Int? = nil,
+        newestFreeModel: AIModel? = nil
     ) {
         self.schemaVersion = Self.schemaVersion
         self.generatedAt = generatedAt
@@ -33,6 +37,7 @@ public struct DashboardSnapshot: Codable, Sendable, Hashable {
         self.bestFree = bestFree
         self.recentChanges = recentChanges
         self.freeModelCount = freeModelCount
+        self.newestFreeModel = newestFreeModel
     }
 
     public static let empty = DashboardSnapshot(

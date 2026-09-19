@@ -42,6 +42,7 @@ public actor RefreshCoordinator {
     public private(set) var bestFree: [RankingCategory: AIModel] = [:]
     public private(set) var recentChanges: [ModelChangeEvent] = []
     public private(set) var freeModelCount: Int?
+    public private(set) var newestFreeModel: AIModel?
 
     public init(
         usageRepository: (any UsageSnapshotRepositoryProtocol)? = nil,
@@ -81,11 +82,13 @@ public actor RefreshCoordinator {
     public func updateRankings(
         bestFree: [RankingCategory: AIModel],
         changes: [ModelChangeEvent],
-        freeModelCount: Int? = nil
+        freeModelCount: Int? = nil,
+        newestFreeModel: AIModel? = nil
     ) {
         self.bestFree = bestFree
         self.recentChanges = changes
         self.freeModelCount = freeModelCount ?? self.freeModelCount
+        self.newestFreeModel = newestFreeModel ?? self.newestFreeModel
     }
 
     /// Re-publishes the widget payload without running a refresh.
@@ -111,7 +114,8 @@ public actor RefreshCoordinator {
             statuses: Array(statuses.values).sorted { $0.accountID < $1.accountID },
             bestFree: bestFree,
             recentChanges: recentChanges,
-            freeModelCount: freeModelCount
+            freeModelCount: freeModelCount,
+            newestFreeModel: newestFreeModel
         )
     }
 

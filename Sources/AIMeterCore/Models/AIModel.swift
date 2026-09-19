@@ -25,6 +25,10 @@ public struct AIModel: Codable, Sendable, Hashable, Identifiable {
     public let benchmark: ModelBenchmark?
     public let availability: ModelAvailability?
 
+    /// When the provider published this model, when it says so. Drives "newest
+    /// free model" and the NEW badge.
+    public let createdAt: Date?
+
     public init(
         id: String,
         canonicalID: CanonicalModelID,
@@ -37,7 +41,8 @@ public struct AIModel: Codable, Sendable, Hashable, Identifiable {
         isFreeVariant: Bool,
         supportedModalities: [String],
         benchmark: ModelBenchmark? = nil,
-        availability: ModelAvailability? = nil
+        availability: ModelAvailability? = nil,
+        createdAt: Date? = nil
     ) {
         self.id = id
         self.canonicalID = canonicalID
@@ -51,6 +56,7 @@ public struct AIModel: Codable, Sendable, Hashable, Identifiable {
         self.supportedModalities = supportedModalities
         self.benchmark = benchmark
         self.availability = availability
+        self.createdAt = createdAt
     }
 
     public func attaching(
@@ -69,7 +75,8 @@ public struct AIModel: Codable, Sendable, Hashable, Identifiable {
             isFreeVariant: isFreeVariant,
             supportedModalities: supportedModalities,
             benchmark: benchmark ?? self.benchmark,
-            availability: availability ?? self.availability
+            availability: availability ?? self.availability,
+            createdAt: createdAt
         )
     }
 }

@@ -37,6 +37,7 @@ struct AIMeterWidgetEntryView: View {
     var body: some View {
         switch family {
         case .systemSmall: SmallWidgetView(snapshot: entry.snapshot)
+        case .systemLarge: LargeWidgetView(snapshot: entry.snapshot)
         default: MediumWidgetView(snapshot: entry.snapshot)
         }
     }
@@ -53,10 +54,14 @@ struct AIMeterWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "AIMeterWidget", provider: AIMeterWidgetProvider()) { entry in
             AIMeterWidgetEntryView(entry: entry)
-                .containerBackground(.fill.tertiary, for: .widget)
+                // Roughly 30% transparent, so the desktop shows through. The
+                // semantic background colour keeps it correct in both themes.
+                .containerBackground(for: .widget) {
+                    Color(nsColor: .windowBackgroundColor).opacity(0.7)
+                }
         }
         .configurationDisplayName("AI Meter")
         .description("AI usage limits and the best free models, at a glance.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }

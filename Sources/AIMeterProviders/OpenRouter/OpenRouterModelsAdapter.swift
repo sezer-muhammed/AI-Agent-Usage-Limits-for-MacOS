@@ -42,7 +42,8 @@ public struct OpenRouterModelsAdapter: ModelCatalogProvider {
             supportedModalities: dto.architecture?.inputModalities
                 ?? dto.architecture?.modality.map { [$0] }
                 ?? [],
-            benchmark: Self.benchmark(dto, capturedAt: now())
+            benchmark: Self.benchmark(dto, capturedAt: now()),
+            createdAt: dto.created.map(Date.init(timeIntervalSince1970:))
         )
     }
 
