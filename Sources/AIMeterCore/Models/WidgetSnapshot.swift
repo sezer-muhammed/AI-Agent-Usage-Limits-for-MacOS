@@ -16,10 +16,14 @@ public struct WidgetSnapshot: Codable, Sendable, Hashable {
     public struct BestModel: Codable, Sendable, Hashable {
         public let name: String
         public let score: Double?
+        /// True when the score was estimated rather than measured. The widget
+        /// marks these so a guess never reads as a benchmark result.
+        public let isEstimate: Bool
 
-        public init(name: String, score: Double?) {
+        public init(name: String, score: Double?, isEstimate: Bool = false) {
             self.name = name
             self.score = score
+            self.isEstimate = isEstimate
         }
     }
 
@@ -107,7 +111,11 @@ public struct WidgetSnapshot: Codable, Sendable, Hashable {
                 case .agentic: model.benchmark?.agentic
                 case .reliable: model.availability?.percentage
                 }
-            best[category.rawValue] = BestModel(name: model.displayName, score: score)
+            best[category.rawValue] = BestModel(
+                name: model.displayName,
+                score: score,
+                isEstimate: model.benchmark?.source.isEstimate ?? false
+            )
         }
 
         // Names come from the account, so two Codex profiles are distinguishable.

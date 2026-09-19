@@ -134,6 +134,16 @@ private struct ModelsSection: View {
                 Text(score(model.benchmark?.agentic)).monospacedDigit()
             }
         }
+        .safeAreaInset(edge: .bottom) {
+            if let notice = state.benchmarkEstimateNotice {
+                Label(notice, systemImage: "exclamationmark.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+                    .background(.bar)
+            }
+        }
         .searchable(text: $search, prompt: "Search models")
         .toolbar {
             ToolbarItem {

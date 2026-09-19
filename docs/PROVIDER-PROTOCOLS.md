@@ -29,13 +29,18 @@ field (`sk-or-v1-2a1...260`). AI Meter decodes the field but never surfaces it �
 the plan label is derived from `is_free_tier` alone — so no key fragment reaches
 the database, the widget snapshot or a log line. A regression test pins this.
 
+Benchmarks: each model may carry a `benchmarks` object, and its
+`artificial_analysis` member holds exactly the three dimensions the spec asks
+for — `intelligence_index`, `coding_index`, `agentic_index`. 251 of 447 models
+carry them, 14 of them free variants. These are measured by a third party and
+passed through by OpenRouter, so AI Meter needs no scoring of its own and no
+language model in the loop. Models without indices keep their catalog entry with
+no scores rather than a filler number.
+
 Limitations:
 
-- **No benchmark data.** The catalog carries no intelligence/coding/agentic
-  scores, so with no benchmark source configured the ranking engine ranks
-  nothing rather than inventing numbers. A `BenchmarkProvider` implementation is
-  the remaining work for the ranking feature.
-- **No availability data** from this endpoint either.
+- **No availability data** from this endpoint, so the "Best Reliable Free"
+  category stays empty rather than guessing at reliability.
 - `/key` reports **dollars, not free-request counts**. Any "N / 50 free requests
   used" display would be fabricated, so AI Meter does not show one.
 
@@ -128,5 +133,5 @@ MenuBarExtra UI, dashboard, WidgetKit extension and App Group entitlement
 (Phases 7–12). Only the Command Line Tools are installed on this machine, so
 those targets cannot be created or built here yet.
 
-Also outstanding: a benchmark/availability source, without which the ranking
-engine has nothing to rank.
+Also outstanding: an availability source, without which the reliability category
+cannot be computed.

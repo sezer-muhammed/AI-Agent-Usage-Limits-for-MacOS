@@ -181,7 +181,9 @@ private struct FreeModelLine: View {
                     .lineLimit(1)
                 if let score = best.score, !compact {
                     Spacer(minLength: 4)
-                    Text(String(format: "%.1f", score))
+                    // "~" marks an estimated score, so it never passes for a
+                    // measured benchmark result.
+                    Text("\(best.isEstimate ? "~" : "")\(String(format: "%.1f", score))")
                         .font(.caption2)
                         .monospacedDigit()
                         .foregroundStyle(.secondary)

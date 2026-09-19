@@ -27,6 +27,8 @@ final class AppEnvironment {
     let openRouterClient: OpenRouterClient
     let codexAccounts: [CodexAccountAdapter]
     let claudeReader = ClaudeBridgeReader()
+    /// Scores come from a feed on disk; nothing measures models in-app.
+    let benchmarks = FileBenchmarkProvider()
 
     init() {
         let keychain = self.keychain

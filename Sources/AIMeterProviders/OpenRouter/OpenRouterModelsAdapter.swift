@@ -7,10 +7,16 @@ public struct OpenRouterModelsAdapter: ModelCatalogProvider {
 
     private let client: OpenRouterClient
     private let canonicalizer: ModelCanonicalizer
+    private let now: @Sendable () -> Date
 
-    public init(client: OpenRouterClient, canonicalizer: ModelCanonicalizer = ModelCanonicalizer()) {
+    public init(
+        client: OpenRouterClient,
+        canonicalizer: ModelCanonicalizer = ModelCanonicalizer(),
+        now: @escaping @Sendable () -> Date = { Date() }
+    ) {
         self.client = client
         self.canonicalizer = canonicalizer
+        self.now = now
     }
 
     public func fetchModels() async throws -> [AIModel] {
@@ -35,8 +41,24 @@ public struct OpenRouterModelsAdapter: ModelCatalogProvider {
             isFreeVariant: Self.isFreeVariant(dto),
             supportedModalities: dto.architecture?.inputModalities
                 ?? dto.architecture?.modality.map { [$0] }
-                ?? []
+                ?? [],
+            benchmark: Self.benchmark(dto, capturedAt: now())
         )
+    }
+
+    /// Reads the catalog's own benchmark indices. A model the benchmark does not
+    /// cover keeps its catalog entry with no scores — never a filler number.
+    static func benchmark(_ dto: OpenRouterDTO.Model, capturedAt: Date) -> ModelBenchmark? {
+        guard let indices = dto.benchmarks?.artificialAnalysis else { return nil }
+
+        let benchmark = ModelBenchmark(
+            intelligence: indices.intelligenceIndex,
+            coding: indices.codingIndex,
+            agentic: indices.agenticIndex,
+            source: .artificialAnalysis,
+            capturedAt: capturedAt
+        )
+        return benchmark.isEmpty ? nil : benchmark
     }
 
     /// Free variants are the `:free` endpoints. A zero price alone is not enough:

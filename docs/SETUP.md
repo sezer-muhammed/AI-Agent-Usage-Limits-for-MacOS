@@ -76,6 +76,31 @@ After that, `swift run aimeter-spike` picks the key up on its own. The
 `OPENROUTER_API_KEY` environment variable still overrides the Keychain for
 one-off runs and CI.
 
+### Benchmark scores
+
+Scores come from the OpenRouter catalog itself, which carries Artificial
+Analysis indices per model. Nothing needs configuring and no scheduled job is
+involved.
+
+To override them with your own numbers, write a feed to
+`~/Library/Application Support/AIMeter/benchmarks.json`:
+
+```json
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-09-19T12:00:00Z",
+  "source": "externalFeed",
+  "sourceDescription": "where these numbers came from",
+  "entries": [
+    { "model": "vendor/model:free", "intelligence": 34.5, "coding": 69.1, "agentic": 41.7 }
+  ]
+}
+```
+
+Set `source` to `languageModelEstimate` if the numbers were produced by a model
+rather than measured — the app then marks them as estimates everywhere they
+appear, so a guess never reads as a benchmark result.
+
 ### Claude
 
 Claude subscription usage comes from Claude Code's status-line telemetry, not

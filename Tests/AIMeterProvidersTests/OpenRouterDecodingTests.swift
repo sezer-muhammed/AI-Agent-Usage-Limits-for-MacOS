@@ -94,3 +94,67 @@ struct OpenRouterUsageAdapterTests {
         #expect(!text.contains("sk-or"))
     }
 }
+
+@Suite("OpenRouter benchmarks")
+struct OpenRouterBenchmarkTests {
+    private func models() throws -> [OpenRouterDTO.Model] {
+        try JSONDecoder().decode(
+            OpenRouterDTO.ModelList.self,
+            from: Fixture.data("OpenRouter/models.json")
+        ).data
+    }
+
+    /// The catalog carries Artificial Analysis indices, so AI Meter needs no
+    /// scoring of its own.
+    @Test("Artificial Analysis indices decode into the three dimensions")
+    func indicesDecode() throws {
+        let captured = Date(timeIntervalSince1970: 1_800_000_000)
+        let benchmark = try #require(
+            OpenRouterModelsAdapter.benchmark(models()[0], capturedAt: captured)
+        )
+
+        #expect(benchmark.intelligence == 34.5)
+        #expect(benchmark.coding == 69.1)
+        #expect(benchmark.agentic == 41.7)
+        #expect(benchmark.source == .artificialAnalysis)
+        // Measured, so nothing may present it as an estimate.
+        #expect(!benchmark.source.isEstimate)
+    }
+
+    @Test("A model without indices gets no benchmark rather than zeros")
+    func missingIndicesStayMissing() throws {
+        let all = try models()
+
+        #expect(OpenRouterModelsAdapter.benchmark(all[1], capturedAt: Date()) == nil)
+        // Present but empty benchmarks object: still nothing to show.
+        #expect(OpenRouterModelsAdapter.benchmark(all[2], capturedAt: Date()) == nil)
+    }
+
+    @Test("Ranking uses the catalog's own scores")
+    func rankingUsesCatalogScores() throws {
+        let canonicalizer = ModelCanonicalizer()
+        let captured = Date()
+
+        let catalog = try models().map { dto in
+            AIModel(
+                id: dto.id,
+                canonicalID: canonicalizer.canonicalID(forProviderModelID: dto.id),
+                displayName: dto.name ?? dto.id,
+                provider: canonicalizer.vendor(forProviderModelID: dto.id),
+                sourceProviderID: Provider.openRouter.id,
+                contextLength: dto.contextLength,
+                inputPricePerMillion: nil,
+                outputPricePerMillion: nil,
+                isFreeVariant: OpenRouterModelsAdapter.isFreeVariant(dto),
+                supportedModalities: [],
+                benchmark: OpenRouterModelsAdapter.benchmark(dto, capturedAt: captured)
+            )
+        }
+
+        let engine = ModelRankingEngine()
+        #expect(engine.bestGeneralFree(catalog)?.id == "examplelab/reference-chat:free")
+        #expect(engine.bestCodingFree(catalog)?.id == "examplelab/reference-chat:free")
+        // No availability data in the catalog, so nothing can claim reliability.
+        #expect(engine.bestReliableFree(catalog) == nil)
+    }
+}

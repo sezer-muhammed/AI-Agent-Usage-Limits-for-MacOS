@@ -11,6 +11,9 @@ final class AppState {
     private(set) var snapshot: DashboardSnapshot = .empty
     private(set) var isRefreshing = false
     private(set) var models: [AIModel] = []
+    /// Where the current scores came from, so the UI can label estimates.
+    private(set) var benchmarkSource: BenchmarkSource?
+    private(set) var benchmarkCapturedAt: Date?
 
     let environment: AppEnvironment
 
@@ -40,19 +43,55 @@ final class AppState {
         let adapter = OpenRouterModelsAdapter(client: environment.openRouterClient)
         guard let fetched = try? await adapter.fetchModels() else { return }
 
-        models = fetched
-        try? await environment.modelRepository?.record(models: fetched, capturedAt: Date())
+        models = await join(fetched, withFeedFrom: environment.benchmarks)
+        try? await environment.modelRepository?.record(models: models, capturedAt: Date())
 
-        let ranked = ModelRankingEngine().bestFree(fetched)
+        let ranked = ModelRankingEngine().bestFree(models)
         await environment.coordinator.updateRankings(
             bestFree: ranked,
             changes: [],
-            freeModelCount: fetched.filter(\.isFreeVariant).count
+            freeModelCount: models.filter(\.isFreeVariant).count
         )
         // The usage pass already wrote the widget payload; publish again so the
         // catalog's numbers are not held back until the next refresh.
         await environment.coordinator.publishWidgetSnapshot()
         snapshot = await environment.coordinator.snapshot()
+    }
+
+    /// Attaches feed scores to catalog entries by canonical id.
+    ///
+    /// A model the feed does not cover keeps its place in the catalog with no
+    /// benchmark, rather than being dropped or given a filler score.
+    private func join(
+        _ catalog: [AIModel],
+        withFeedFrom provider: FileBenchmarkProvider
+    ) async -> [AIModel] {
+        guard provider.isConfigured else {
+            benchmarkSource = nil
+            benchmarkCapturedAt = nil
+            return catalog
+        }
+
+        let scores = (try? await provider.benchmarks()) ?? [:]
+        let availability = (try? await provider.availability()) ?? [:]
+
+        if let feed = try? provider.load() {
+            benchmarkSource = feed.source
+            benchmarkCapturedAt = feed.capturedAt
+        }
+
+        return catalog.map { model in
+            model.attaching(
+                benchmark: scores[model.canonicalID],
+                availability: availability[model.canonicalID]
+            )
+        }
+    }
+
+    /// Set when the scores on screen are estimates rather than measurements.
+    var benchmarkEstimateNotice: String? {
+        guard let benchmarkSource, benchmarkSource.isEstimate else { return nil }
+        return "Scores are estimates, not measured benchmarks"
     }
 
     // MARK: Derived view data

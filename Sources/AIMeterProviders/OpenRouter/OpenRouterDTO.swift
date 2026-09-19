@@ -23,6 +23,7 @@ enum OpenRouterDTO {
         let architecture: Architecture?
         let pricing: Pricing?
         let topProvider: TopProvider?
+        let benchmarks: Benchmarks?
 
         enum CodingKeys: String, CodingKey {
             case id
@@ -32,6 +33,30 @@ enum OpenRouterDTO {
             case architecture
             case pricing
             case topProvider = "top_provider"
+            case benchmarks
+        }
+    }
+
+    /// Benchmark indices the catalog carries. These are measured by third
+    /// parties and passed through by OpenRouter, so AI Meter needs no scoring
+    /// of its own — and must not invent scores for the models that lack them.
+    struct Benchmarks: Decodable, Sendable {
+        let artificialAnalysis: ArtificialAnalysis?
+
+        enum CodingKeys: String, CodingKey {
+            case artificialAnalysis = "artificial_analysis"
+        }
+    }
+
+    struct ArtificialAnalysis: Decodable, Sendable {
+        let intelligenceIndex: Double?
+        let codingIndex: Double?
+        let agenticIndex: Double?
+
+        enum CodingKeys: String, CodingKey {
+            case intelligenceIndex = "intelligence_index"
+            case codingIndex = "coding_index"
+            case agenticIndex = "agentic_index"
         }
     }
 
