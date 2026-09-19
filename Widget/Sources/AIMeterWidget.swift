@@ -54,11 +54,11 @@ struct AIMeterWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "AIMeterWidget", provider: AIMeterWidgetProvider()) { entry in
             AIMeterWidgetEntryView(entry: entry)
-                // Roughly 30% transparent, so the desktop shows through. The
-                // semantic background colour keeps it correct in both themes.
-                .containerBackground(for: .widget) {
-                    Color(nsColor: .windowBackgroundColor).opacity(0.7)
-                }
+                // A translucent material, like the system's own weather widget.
+                // A colour with opacity does not show the desktop through:
+                // macOS composites desktop widgets over an opaque backing, so
+                // the transparency has to come from a material.
+                .containerBackground(.ultraThinMaterial, for: .widget)
         }
         .configurationDisplayName("AI Meter")
         .description("AI usage limits and the best free models, at a glance.")

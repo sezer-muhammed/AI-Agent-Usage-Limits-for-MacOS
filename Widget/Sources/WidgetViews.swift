@@ -49,6 +49,8 @@ private struct WindowCell: View {
                         .font(.caption.weight(.semibold))
                         .monospacedDigit()
                         .foregroundStyle(WidgetFormat.tint(window.usedFraction))
+                        .fixedSize()
+                        .layoutPriority(1)
 
                     Spacer(minLength: 0)
 
@@ -56,6 +58,8 @@ private struct WindowCell: View {
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
 
                 Capsule()
@@ -87,6 +91,7 @@ private struct AccountRow: View {
                 Text(account.displayName)
                     .font(.caption)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .truncationMode(.tail)
 
                 // Staleness is shown, never hidden.
@@ -134,8 +139,11 @@ private struct WidgetTitle: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
+            // Sized and weighted like Calendar's "SEPTEMBER". Colour stays the
+            // app accent rather than Calendar's red, because red already means
+            // "quota critical" one column over.
             Text("AI METER")
-                .font(compact ? .subheadline.weight(.bold) : .title3.weight(.bold))
+                .font(compact ? .headline.weight(.bold) : .title2.weight(.bold))
                 .foregroundStyle(.tint)
 
             Spacer()
