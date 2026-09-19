@@ -21,15 +21,14 @@ swift test
 
 ### Toolchain note
 
-With only the Command Line Tools installed, the swift-testing macro plugin is
-not on the default plugin search path and `swift test` fails to build. Point it
-at the plugin that ships with the tools:
+Swift Testing's macro plugin ships inside the toolchain, but with only the
+Command Line Tools installed it is not on the default plugin search path, and
+`swift test` would fail to build the test targets. `Package.swift` detects that
+situation and points the compiler at the plugin that belongs to the active
+toolchain, so no flag is needed.
 
-```bash
-swift test -Xswiftc -plugin-path -Xswiftc /Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing
-```
-
-A full Xcode installation does not need the flag.
+Once Xcode is installed the manifest adds nothing: Xcode finds its own plugin,
+and a plugin from one toolchain must not be fed to another.
 
 ## Run the feasibility spike
 
