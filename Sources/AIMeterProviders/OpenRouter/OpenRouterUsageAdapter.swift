@@ -62,7 +62,11 @@ public struct OpenRouterUsageAdapter: UsageProvider {
             spendMonthUSD: key.usageMonthly.map { Decimal($0) },
             creditsRemainingUSD: creditsRemaining,
             activeModelID: nil,
-            planLabel: key.isFreeTier == true ? "Free tier" : key.label
+            // Deliberately NOT key.label: OpenRouter returns a truncated form of
+            // the API key itself there ("sk-or-v1-2a1...260"). That fragment must
+            // not reach the database, the widget snapshot or a log line, so the
+            // plan label is derived only from the free-tier flag.
+            planLabel: key.isFreeTier == true ? "Free tier" : "Paid key"
         )
     }
 }

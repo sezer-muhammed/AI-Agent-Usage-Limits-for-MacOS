@@ -64,6 +64,8 @@ enum OpenRouterDTO {
     /// `/api/v1/key` — what this key has spent and what it is allowed to spend.
     /// Note these are dollar amounts, never a count of free requests.
     struct KeyInfo: Decodable, Sendable {
+        /// Decoded for completeness, but never surfaced: OpenRouter puts a
+        /// truncated form of the API key in this field.
         let label: String?
         let usage: Double?
         let usageDaily: Double?

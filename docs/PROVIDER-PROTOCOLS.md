@@ -24,6 +24,11 @@ Confirmed details:
   `architecture.modality` is a single combined string such as `text+image->text`.
 - `top_provider.context_length` can differ from the top-level `context_length`.
 
+Security note: `/key` returns a **truncated copy of the API key** in its `label`
+field (`sk-or-v1-2a1...260`). AI Meter decodes the field but never surfaces it —
+the plan label is derived from `is_free_tier` alone — so no key fragment reaches
+the database, the widget snapshot or a log line. A regression test pins this.
+
 Limitations:
 
 - **No benchmark data.** The catalog carries no intelligence/coding/agentic

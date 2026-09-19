@@ -18,6 +18,29 @@ import Foundation
 // The output can contain real account data (plan, spend, reset times), so it is
 // printed to stdout and never written into the repository.
 
+/// Reads a line from the terminal with echo turned off, so a pasted credential
+/// does not stay visible in the scrollback. Falls back to a plain read when
+/// stdin is not a terminal (a pipe, or CI).
+func readSecretLine() -> String? {
+    guard isatty(STDIN_FILENO) == 1 else { return readLine(strippingNewline: true) }
+
+    var original = termios()
+    guard tcgetattr(STDIN_FILENO, &original) == 0 else {
+        return readLine(strippingNewline: true)
+    }
+
+    var silenced = original
+    silenced.c_lflag &= ~tcflag_t(ECHO)
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &silenced)
+    defer {
+        tcsetattr(STDIN_FILENO, TCSAFLUSH, &original)
+        // The user's Return was swallowed along with the echo.
+        FileHandle.standardError.write(Data("\n".utf8))
+    }
+
+    return readLine(strippingNewline: true)
+}
+
 enum Command {
     case runSpike
     case setOpenRouterKey
@@ -73,8 +96,10 @@ switch options.command {
 case .setOpenRouterKey:
     // Read from stdin, never from an argument: an argument would land in shell
     // history and in the process list.
-    FileHandle.standardError.write(Data("Paste your OpenRouter API key, then press Return:\n".utf8))
-    let entered = readLine(strippingNewline: true)?.trimmingCharacters(in: .whitespacesAndNewlines)
+    FileHandle.standardError.write(
+        Data("Paste your OpenRouter API key, then press Return (input is hidden):\n".utf8)
+    )
+    let entered = readSecretLine()?.trimmingCharacters(in: .whitespacesAndNewlines)
 
     guard let entered, !entered.isEmpty else {
         FileHandle.standardError.write(Data("No key entered; nothing was stored.\n".utf8))
