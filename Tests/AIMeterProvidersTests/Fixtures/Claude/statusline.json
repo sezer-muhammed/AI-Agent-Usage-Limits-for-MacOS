@@ -1,0 +1,14 @@
+{
+  "cwd": "/fixture/working/directory",
+  "session_id": "fixture-session",
+  "transcript_path": "/fixture/transcript.jsonl",
+  "model": { "id": "claude-opus-5", "display_name": "Opus" },
+  "workspace": { "current_dir": "/fixture/working/directory" },
+  "version": "2.1.267",
+  "cost": { "total_cost_usd": 1.23 },
+  "context_window": { "used_percentage": 8 },
+  "rate_limits": {
+    "five_hour": { "used_percentage": 72.3, "resets_at": 1789800000 },
+    "seven_day": { "used_percentage": 38.1, "resets_at": 1790000000 }
+  }
+}

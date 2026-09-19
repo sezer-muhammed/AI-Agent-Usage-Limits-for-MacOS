@@ -1,0 +1,9 @@
+{
+  "data": {
+    "label": "fixture-free-key",
+    "usage": 0,
+    "limit": null,
+    "limit_remaining": null,
+    "is_free_tier": true
+  }
+}

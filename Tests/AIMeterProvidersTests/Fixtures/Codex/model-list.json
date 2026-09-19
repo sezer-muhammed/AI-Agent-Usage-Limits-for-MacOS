@@ -1,0 +1,23 @@
+{
+  "data": [
+    {
+      "id": "fixture-model-high",
+      "model": "fixture-model-high",
+      "displayName": "Fixture Model High",
+      "description": "Fixture entry.",
+      "isDefault": true,
+      "hidden": false,
+      "inputModalities": ["text", "image"]
+    },
+    {
+      "id": "fixture-model-mini",
+      "model": "fixture-model-mini",
+      "displayName": "Fixture Model Mini",
+      "description": "Fixture entry.",
+      "isDefault": false,
+      "hidden": false,
+      "inputModalities": ["text"]
+    }
+  ],
+  "nextCursor": null
+}

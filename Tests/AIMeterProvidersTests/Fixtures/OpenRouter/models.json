@@ -1,0 +1,39 @@
+{
+  "data": [
+    {
+      "id": "examplelab/reference-chat:free",
+      "canonical_slug": "examplelab/reference-chat-20260101",
+      "name": "ExampleLab: Reference Chat (free)",
+      "context_length": 262144,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": ["text"],
+        "output_modalities": ["text"]
+      },
+      "pricing": { "prompt": "0", "completion": "0" },
+      "top_provider": { "context_length": 262144 }
+    },
+    {
+      "id": "examplelab/reference-chat",
+      "canonical_slug": "examplelab/reference-chat-20260101",
+      "name": "ExampleLab: Reference Chat",
+      "context_length": 262144,
+      "architecture": {
+        "modality": "text+image->text",
+        "input_modalities": ["text", "image"],
+        "output_modalities": ["text"]
+      },
+      "pricing": { "prompt": "0.0000005", "completion": "0.0000015" },
+      "top_provider": { "context_length": 262144 }
+    },
+    {
+      "id": "othervendor/promo-model",
+      "canonical_slug": "othervendor/promo-model",
+      "name": "OtherVendor: Promo Model",
+      "context_length": 32768,
+      "architecture": { "modality": "text->text", "input_modalities": ["text"] },
+      "pricing": { "prompt": "0", "completion": "0" },
+      "top_provider": { "context_length": 32768 }
+    }
+  ]
+}

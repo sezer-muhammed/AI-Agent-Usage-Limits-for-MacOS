@@ -1,0 +1,6 @@
+{
+  "cwd": "/fixture/working/directory",
+  "session_id": "fixture-session",
+  "model": { "id": "claude-sonnet-5", "display_name": "Sonnet" },
+  "version": "2.1.267"
+}
