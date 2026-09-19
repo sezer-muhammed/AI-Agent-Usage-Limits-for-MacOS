@@ -25,7 +25,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "AIMeterClaudeBridge",
-            dependencies: ["AIMeterCore"],
+            dependencies: ["AIMeterCore", "AIMeterProviders"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .executableTarget(
