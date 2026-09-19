@@ -79,26 +79,24 @@ one-off runs and CI.
 ### Claude
 
 Claude subscription usage comes from Claude Code's status-line telemetry, not
-from an Anthropic API key — they are different systems. Build the bridge and
-point Claude Code's status line at it:
+from an Anthropic API key — they are different systems. Build the bridge, then
+install it:
 
 ```bash
 swift build -c release
+swift run -c release aimeter-spike --install-claude-bridge
 ```
 
-Then in `~/.claude/settings.json`:
+The installer prints what it will change before changing it, backs up
+`~/.claude/settings.json` first, and preserves an existing status line by
+chaining to it — your status line keeps rendering exactly as before. Pass
+`--replace-status-line` to overwrite it instead. To undo:
 
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "'/path/to/aimeter-claude-bridge' --out '/Users/you/Library/Application Support/AIMeter/claude-telemetry.json'"
-  }
-}
+```bash
+swift run -c release aimeter-spike --remove-claude-bridge
 ```
 
-`ClaudeIntegrationInstaller` automates this, including backing up the file and
-chaining to an existing status line with `--forward '<previous command>'`.
+That restores whatever status line was configured before.
 
 `rate_limits` appears only for Claude Pro/Max subscribers and only after the
 first API response in a session, so the file may exist with no windows in it

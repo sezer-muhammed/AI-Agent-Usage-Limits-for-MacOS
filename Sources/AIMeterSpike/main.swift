@@ -13,6 +13,8 @@ import Foundation
 //   swift run aimeter-spike
 //   swift run aimeter-spike --set-openrouter-key      (reads the key from stdin)
 //   swift run aimeter-spike --forget-openrouter-key
+//   swift run aimeter-spike --install-claude-bridge
+//   swift run aimeter-spike --remove-claude-bridge
 //   swift run aimeter-spike --codex-home-a ~/.codex-aimeter-personal
 //
 // The output can contain real account data (plan, spend, reset times), so it is
@@ -45,6 +47,8 @@ enum Command {
     case runSpike
     case setOpenRouterKey
     case forgetOpenRouterKey
+    case installClaudeBridge
+    case removeClaudeBridge
 }
 
 struct Options {
@@ -56,6 +60,10 @@ struct Options {
         fileURLWithPath: NSString(string: "~/.codex-aimeter-secondary").expandingTildeInPath
     )
     var claudeTelemetryURL = ClaudeTelemetry.defaultURL()
+    var claudeSettingsURL = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent(".claude/settings.json")
+    /// Replace an existing status line instead of chaining to it.
+    var replaceExistingStatusLine = false
 
     init(_ raw: [String]) {
         var index = 0
@@ -77,6 +85,18 @@ struct Options {
             case "--forget-openrouter-key":
                 command = .forgetOpenRouterKey
                 index += 1
+            case "--install-claude-bridge":
+                command = .installClaudeBridge
+                index += 1
+            case "--remove-claude-bridge":
+                command = .removeClaudeBridge
+                index += 1
+            case "--replace-status-line":
+                replaceExistingStatusLine = true
+                index += 1
+            case "--claude-settings":
+                if let next { claudeSettingsURL = URL(fileURLWithPath: NSString(string: next).expandingTildeInPath) }
+                index += 2
             default:
                 index += 1
             }
@@ -134,6 +154,73 @@ case .forgetOpenRouterKey:
         print("Removed the OpenRouter key from the Keychain.")
     } catch {
         FileHandle.standardError.write(Data("Could not remove the key: \(error)\n".utf8))
+        exit(1)
+    }
+    exit(0)
+
+case .installClaudeBridge:
+    // The bridge must be the built binary, not this debug harness.
+    let bridgeURL = URL(fileURLWithPath: CommandLine.arguments[0])
+        .deletingLastPathComponent()
+        .appendingPathComponent("aimeter-claude-bridge")
+
+    guard FileManager.default.isExecutableFile(atPath: bridgeURL.path) else {
+        FileHandle.standardError.write(
+            Data("Build it first: swift build -c release\nExpected at \(bridgeURL.path)\n".utf8)
+        )
+        exit(1)
+    }
+
+    let installer = ClaudeIntegrationInstaller(
+        settingsURL: options.claudeSettingsURL,
+        bridgeExecutableURL: bridgeURL,
+        telemetryURL: options.claudeTelemetryURL
+    )
+
+    do {
+        let state = try installer.inspect()
+        switch state.existing {
+        case .none:
+            print("No existing status line found.")
+        case .aiMeter:
+            print("AI Meter's status line is already installed; it will be refreshed.")
+        case .other(let command):
+            print("Existing status line found:\n  \(command)")
+            print(
+                options.replaceExistingStatusLine
+                    ? "It will be REPLACED (--replace-status-line)."
+                    : "It will be preserved: AI Meter chains to it and passes its output through."
+            )
+        }
+
+        // Say exactly what changes, then make it reversible.
+        let plan = try installer.install(replaceExisting: options.replaceExistingStatusLine)
+
+        print("\nSettings: \(plan.settingsURL.path)")
+        if let backup = plan.backupURL {
+            print("Backup:   \(backup.path)")
+        }
+        print("Command:  \(plan.newCommand)")
+        print("\nInstalled. Claude Code writes telemetry on its next status-line update.")
+        print("Undo with: swift run aimeter-spike --remove-claude-bridge")
+    } catch {
+        FileHandle.standardError.write(Data("Install failed: \(error)\n".utf8))
+        exit(1)
+    }
+    exit(0)
+
+case .removeClaudeBridge:
+    let installer = ClaudeIntegrationInstaller(
+        settingsURL: options.claudeSettingsURL,
+        bridgeExecutableURL: URL(fileURLWithPath: "/nonexistent"),
+        telemetryURL: options.claudeTelemetryURL
+    )
+
+    do {
+        try installer.remove()
+        print("Removed. Any status line that was there before has been restored.")
+    } catch {
+        FileHandle.standardError.write(Data("Remove failed: \(error)\n".utf8))
         exit(1)
     }
     exit(0)
