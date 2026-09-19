@@ -54,6 +54,8 @@ struct SpikeReport: Encodable {
         let availability: Double?
     }
 
+    /// Named so the reader never has to guess what the offsets mean.
+    var timeZone: String
     var generatedAt: Date
     var openrouter: ProviderSection
     var claude: ProviderSection

@@ -364,6 +364,7 @@ if codexPersonal.planLabel == nil || codexSecondary.planLabel == nil {
 // MARK: Report
 
 let report = SpikeReport(
+    timeZone: TimeZone.current.identifier,
     generatedAt: Date(),
     openrouter: openRouterSection,
     claude: claudeSection,
@@ -383,7 +384,8 @@ let report = SpikeReport(
     notes: notes
 )
 
-let encoder = DateFormatting.makeEncoder(prettyPrinted: true)
+// Times are rendered in this Mac's time zone: the report is read by a person.
+let encoder = DateFormatting.makeLocalTimeEncoder(prettyPrinted: true)
 if let data = try? encoder.encode(report), let text = String(data: data, encoding: .utf8) {
     print(text)
 } else {

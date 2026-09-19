@@ -26,6 +26,35 @@ public enum DateFormatting {
         return formatter.localizedString(for: date, relativeTo: now)
     }
 
+    /// ISO-8601 in a given time zone, carrying the offset (`2026-09-19T20:52:32+03:00`).
+    ///
+    /// Stored data stays UTC — that is what a timestamp is for. This exists for
+    /// output a person reads, where UTC is a needless translation step.
+    public static func localISO8601String(
+        _ date: Date,
+        timeZone: TimeZone = .current
+    ) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        formatter.timeZone = timeZone
+        return formatter.string(from: date)
+    }
+
+    /// An encoder that writes dates in the machine's local time zone.
+    /// For human-facing output only; persisted snapshots use `makeEncoder`.
+    public static func makeLocalTimeEncoder(
+        prettyPrinted: Bool = false,
+        timeZone: TimeZone = .current
+    ) -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = prettyPrinted ? [.prettyPrinted, .sortedKeys] : [.sortedKeys]
+        encoder.dateEncodingStrategy = .custom { date, encoder in
+            var container = encoder.singleValueContainer()
+            try container.encode(localISO8601String(date, timeZone: timeZone))
+        }
+        return encoder
+    }
+
     /// A JSON coder pair configured the same way everywhere, so a snapshot
     /// written by the app always decodes in the widget.
     public static func makeEncoder(prettyPrinted: Bool = false) -> JSONEncoder {
